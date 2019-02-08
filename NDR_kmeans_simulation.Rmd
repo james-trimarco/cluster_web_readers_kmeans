@@ -15,7 +15,7 @@ output: html_document
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
-```{r setup, include=FALSE}
+```{r libraries, include=FALSE}
 library(tidyverse)
 library(cluster)    # clustering algorithms
 library(fpc) # for visualizing clusters
