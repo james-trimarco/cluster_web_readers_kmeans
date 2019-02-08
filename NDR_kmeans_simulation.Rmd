@@ -14,14 +14,24 @@ output: html_document
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
 ```
+## Introduction  
+Back when I was a magazine editor, I spent a lot of time looking over web traffic with my teammates. We could see patterns in the traffic and we often imagined that readers might fall into different categories: people who mostly read lifestyle stories but also read about the environment; people who read politics stories but avoided arts and culture stories, and so on. If we could sort readers into these categories, we might be able to better personalize our communications with them. 
 
+We didn't quite have a way to quantify these hunches, though, so hunches they remained. 
+
+After going back to school for data science, I realized that the kmeans algorithm offers a tool to do exactly the process we'd been thinking about. Kmeans starts by randomly selecting $k$ center points — $k$ is a number that we pick ourselves — and then runs an algorithm that finds all the points closest to each center, takes the average of those points to find a new center, and repeats under stable clusters emerge. (For a full description of how kmeans works, watch this [fun video by StatQuest](https://www.youtube.com/watch?v=4b5d3muPQmA)). 
+
+Since that time, I've run the kmeans algorithm for clients to help them find the clusters hidden in their web traffic data. Usually it's clear that the results are pretty close to the publishers' hunches — "There seemed to be a group that came around every time our star blogger posted." But some of the results usually come as a surprise. 
+
+The following workflow shows the basics of how to apply the kmeans algorithm to web traffic data using synthetic data that roughly — very roughly, actually — simulates some client data I've worked with. 
+
+## Load libraries
 ```{r libraries, include=FALSE}
-library(tidyverse)
-library(cluster)    # clustering algorithms
+library(tidyverse) # for working with data
+library(cluster) # clustering algorithms
 library(fpc) # for visualizing clusters
 library(wesanderson) # for colors
 ```
-
 
 
 ## Settings
