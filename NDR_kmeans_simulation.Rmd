@@ -34,29 +34,37 @@ library(wesanderson) # for colors
 ```
 
 
-## Settings
+## Control panel
+Various key settings are set here. 
 
+The four groups of clients represent clusters with different reading habits. In an effort to simulate real web traffic data, the clusters are not all the same size. Furthermore, some clusters read more than others, and that number is independent of the number of readers in the cluster. 
 ```{r}
+# Here's where we set the "k" in kmeans. 
+# We'll get a number of clusters equal to the number we set for k here. 
 k <- 3
 
-total_clients <- 1000
+# This sets the number of unique clients to generate
+total_subscribers <- 1000
+# This sets the number of weblogs the algorithm will examine
 total_weblogs <- 50000
 
-group_1_cutoff = (0:250)
-group_2_cutoff = (251:600)
-group_3_cutoff = (601:750)
-group_4_cutoff = c(751:1000)
+# These settings determine how many of the clients fall into each cluster
+group_1_cutoff <- (0:250)
+group_2_cutoff <- (251:600)
+group_3_cutoff <- (601:750)
+group_4_cutoff <- c(751:1000)
 
-# total of 50000
-group_1_size = 14000
-group_2_size = 12000
-group_3_size = 16000
-group_4_size = 8000
+# These settings determine the number of weblogs made by each 
+# group of readers
+group_1_logs <- total_weblogs*.4
+group_2_logs <- total_weblogs*.2
+group_3_logs <- total_weblogs*.3
+group_4_logs <- total_weblogs*.1
 ```
 
 ## Synthesize data
-
 ### Create publication categories
+Please forgive the generic publication categories. Note that some stories are coded NA, which is something I see a lot in real client data. 
 ```{r}
 channels <- c("breakings_news", 
              "arts_culture", 
@@ -73,11 +81,11 @@ pr_group_3 <- c(.26, .01, .6, .01, .04, .01, .07)
 ```
 
 
-### Create alphanumeric client codes
+### Create alphanumeric subscriber codes
 ```{r}
-r <- replicate(total_clients, paste(sample(LETTERS, 3, replace=TRUE), collapse=""))
-n <- replicate(total_clients, paste(sample(c(1:9), 3, replace=TRUE), collapse=""))
-client_codes <- paste0(r, n)
+r <- replicate(total_subscribers, paste(sample(LETTERS, 3, replace=TRUE), collapse=""))
+n <- replicate(total_subscribers, paste(sample(c(1:9), 3, replace=TRUE), collapse=""))
+subscriber_codes <- paste0(r, n)
 ```
 
 ### Create column of dates
@@ -94,23 +102,23 @@ rand.date=function(start.day,end.day,size){
 
 ### Put it together into a data frame
 ```{r}
-group_1 <- tibble(client_code = sample(client_codes[group_1_cutoff], size=group_1_size, replace = TRUE), 
-               sys_time = rand.date("2014-01-01","2018-12-31",group_1_size), 
-               channel = sample(channels, size=group_1_size, prob = pr_group_1, replace = TRUE))
+group_1 <- tibble(sub_code = sample(subscriber_codes[group_1_cutoff], size=group_1_logs, replace = TRUE), 
+               sys_time = rand.date("2014-01-01","2018-12-31",group_1_logs), 
+               channel = sample(channels, size=group_1_logs, prob = pr_group_1, replace = TRUE))
 
-group_2 <- tibble(client_code = sample(client_codes[group_2_cutoff], size=group_2_size, replace = TRUE), 
-               sys_time = rand.date("2014-01-01","2018-12-31",group_2_size), 
-               channel = sample(channels, size=group_2_size, prob = pr_group_2, replace = TRUE))
+group_2 <- tibble(sub_code = sample(subscriber_codes[group_2_cutoff], size=group_2_logs, replace = TRUE), 
+               sys_time = rand.date("2014-01-01","2018-12-31",group_2_logs), 
+               channel = sample(channels, size=group_2_logs, prob = pr_group_2, replace = TRUE))
 
-group_3 <- tibble(client_code = sample(client_codes[group_3_cutoff], size=group_3_size, replace = TRUE), 
-               sys_time = rand.date("2014-01-01","2018-12-31",group_3_size), 
-               channel = sample(channels, size=group_3_size, prob = pr_group_3, replace = TRUE))
+group_3 <- tibble(sub_code = sample(subscriber_codes[group_3_cutoff], size=group_3_logs, replace = TRUE), 
+               sys_time = rand.date("2014-01-01","2018-12-31",group_3_logs), 
+               channel = sample(channels, size=group_3_logs, prob = pr_group_3, replace = TRUE))
 
-group_4 <- tibble(client_code = sample(client_codes[group_4_cutoff], size=group_4_size, replace = TRUE), 
-               sys_time = rand.date("2014-01-01","2018-12-31",group_4_size), 
-               channel = sample(channels, size=group_4_size, replace = TRUE))
+group_4 <- tibble(sub_code = sample(subscriber_codes[group_4_cutoff], size=group_4_logs, replace = TRUE), 
+               sys_time = rand.date("2014-01-01","2018-12-31",group_4_logs), 
+               channel = sample(channels, size=group_4_logs, replace = TRUE))
 
-client <- bind_rows(group_1, group_2, group_3, group_4)
+subs <- bind_rows(group_1, group_2, group_3, group_4)
 ```
 
 
@@ -118,32 +126,32 @@ client <- bind_rows(group_1, group_2, group_3, group_4)
 ### Look for clusters in top 5 most-read titles by customer
 ```{r}
 # 
-client_prop <- client %>%
+sub_prop <- subs %>%
     select(-sys_time) %>%
     filter(!is.na(channel)) %>%
-    group_by(client_code) %>%
-    mutate(client_views = sum(n())) %>% 
-    group_by(client_code, channel, client_views) %>%
-    summarise(client_channel_views = n()) %>%
-    mutate(freq = client_channel_views/client_views) %>%
-    arrange(client_code, desc(freq)) 
+    group_by(sub_code) %>%
+    mutate(sub_views = sum(n())) %>% 
+    group_by(sub_code, channel, sub_views) %>%
+    summarise(sub_channel_views = n()) %>%
+    mutate(freq = sub_channel_views/sub_views) %>%
+    arrange(sub_code, desc(freq)) 
 
 # prep data for k-means
-clients_wide <- client_prop %>%
-    select(-client_views, -client_channel_views) %>%
+subs_wide <- sub_prop %>%
+    select(-sub_views, -sub_channel_views) %>%
     spread(channel, freq) 
 
 # Replace NAs with 0
-clients_wide[is.na(clients_wide)] <- 0.0
+subs_wide[is.na(subs_wide)] <- 0.0
 
 # do kmeans
-k2 <- kmeans(clients_wide[2:7], centers = k, nstart = 10, algorithm = "Hartigan-Wong")
+k2 <- kmeans(subs_wide[2:7], centers = k, nstart = 10, algorithm = "Hartigan-Wong")
 
 # plot kmeans
-plotcluster(clients_wide[2:7], k2$cluster)
+plotcluster(subs_wide[2:7], k2$cluster)
 
 # Add cluster numbers back to original dataset
-channel_cluster <- cbind(clients_wide, clusterNum = k2$cluster)
+channel_cluster <- cbind(subs_wide, clusterNum = k2$cluster)
 
 # View the data
 head(channel_cluster, 50)
