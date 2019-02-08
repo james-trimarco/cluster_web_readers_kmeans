@@ -14,6 +14,8 @@ knitr::opts_chunk$set(echo = TRUE)
 ## Settings
 
 ```{r}
+k <- 3
+
 total_clients <- 1000
 total_weblogs <- 50000
 
@@ -112,7 +114,7 @@ clients_wide <- client_prop %>%
 clients_wide[is.na(clients_wide)] <- 0.0
 
 # do kmeans
-k2 <- kmeans(clients_wide[2:7], centers = 3, nstart = 10, algorithm = "Hartigan-Wong")
+k2 <- kmeans(clients_wide[2:7], centers = k, nstart = 10, algorithm = "Hartigan-Wong")
 
 # plot kmeans
 plotcluster(clients_wide[2:7], k2$cluster)
