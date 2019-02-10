@@ -14,6 +14,7 @@ output: html_document
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
 ```
+
 ## Introduction  
 Back when I was a magazine editor, I spent a lot of time looking over web traffic with my teammates. We could see patterns in the traffic and we often imagined that readers might fall into different categories. For example, some people mostly read lifestyle stories but also read about the environment; others who read all the politics stories but avoided arts and culture stories; and so on. If we could sort readers into these categories, we might be able to better personalize our communications with them. 
 
