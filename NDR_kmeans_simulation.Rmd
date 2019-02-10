@@ -15,19 +15,19 @@ output: html_document
 knitr::opts_chunk$set(echo = TRUE)
 ```
 ## Introduction  
-Back when I was a magazine editor, I spent a lot of time looking over web traffic with my teammates. We could see patterns in the traffic and we often imagined that readers might fall into different categories: people who mostly read lifestyle stories but also read about the environment; people who read politics stories but avoided arts and culture stories, and so on. If we could sort readers into these categories, we might be able to better personalize our communications with them. 
+Back when I was a magazine editor, I spent a lot of time looking over web traffic with my teammates. We could see patterns in the traffic and we often imagined that readers might fall into different categories. For example, some people mostly read lifestyle stories but also read about the environment; others who read all the politics stories but avoided arts and culture stories; and so on. If we could sort readers into these categories, we might be able to better personalize our communications with them. 
 
 We didn't quite have a way to quantify these hunches, though, so hunches they remained. 
 
-After going back to school for data science, I realized that the kmeans algorithm offers a tool to do exactly the process we'd been thinking about. Kmeans starts by randomly selecting $k$ center points — $k$ is a number that we pick ourselves — and then runs an algorithm that finds all the points closest to each center, takes the average of those points to find a new center, and repeats under stable clusters emerge. (For a full description of how kmeans works, watch this [fun video by StatQuest](https://www.youtube.com/watch?v=4b5d3muPQmA)). 
+After going back to school for data science, I realized that the kmeans algorithm offers a tool to do the classification we'd been thinking about. Kmeans starts by randomly selecting $k$ center points — $k$ is a number that we pick ourselves — and then runs an algorithm that finds all the points closest to each center, takes the average of those points to find a new center, and repeats under stable clusters emerge. It's an "unsupervised" algorithm, which means we won't know what categories we're going to find until we actually find them (For a full description of how kmeans works, I recommend this [fun video by StatQuest](https://www.youtube.com/watch?v=4b5d3muPQmA)). 
 
-Since that time, I've run the kmeans algorithm for clients to help them find the clusters hidden in their web traffic data. Usually it's clear that the results are pretty close to the publishers' hunches — "There seemed to be a group that came around every time our star blogger posted." But some of the results usually come as a surprise. 
+Since that time, I've run the kmeans algorithm for clients to help them identify the clusters of subscribers hidden in their web traffic data. Usually some results match the publishers' hunches — "We always thought we saw a group that came around every time our star blogger posted new content." But other results came as a surprise. 
 
-The following workflow shows the basics of how to apply the kmeans algorithm to web traffic data using synthetic data that roughly — very roughly, actually — simulates some client data I've worked with. 
+The following workflow shows the basics of how to apply the kmeans algorithm to web traffic data using synthetic data that roughly simulates some client data I recently saw. 
 
 ## Load libraries
 ```{r libraries, include=FALSE}
-library(tidyverse) # for working with data
+library(tidyverse) # essential data tools
 library(cluster) # clustering algorithms
 library(fpc) # for visualizing clusters
 library(wesanderson) # for colors
@@ -37,55 +37,66 @@ library(wesanderson) # for colors
 ## Control panel
 Various key settings are set here. 
 
-The four groups of clients represent clusters with different reading habits. In an effort to simulate real web traffic data, the clusters are not all the same size. Furthermore, some clusters read more than others, and that number is independent of the number of readers in the cluster. 
+The four groups of clients we create in the code chunk below represent clusters with different reading habits. In an effort to simulate real web traffic data, the clusters are not all the same size. Furthermore, some clusters read more than others, and that number is independent of the number of readers in the cluster. 
 ```{r}
 # Here's where we set the "k" in kmeans. 
-# We'll get a number of clusters equal to the number we set for k here. 
+# At the end, we'll see a number of clusters equal to the number we set k to here. 
 k <- 3
 
-# This sets the number of unique clients to generate
+# This sets the number of unique readers to generate.
+# Eacher reader will get a subscriber code.
 total_subscribers <- 1000
-# This sets the number of weblogs the algorithm will examine
+
+# This sets the number of weblogs the algorithm will examine.
+# On average, each subscriber read 50 pieces of content during this time period.
 total_weblogs <- 50000
 
-# These settings determine how many of the clients fall into each cluster
+# These settings determine how many of the clients fall into each cluster.
 group_1_cutoff <- (0:250)
 group_2_cutoff <- (251:600)
 group_3_cutoff <- (601:750)
 group_4_cutoff <- c(751:1000)
 
 # These settings determine the number of weblogs made by each 
-# group of readers
-group_1_logs <- total_weblogs*.4
-group_2_logs <- total_weblogs*.2
-group_3_logs <- total_weblogs*.3
-group_4_logs <- total_weblogs*.1
+# group of readers. 
+# The coefficients here should sum to 1.
+group_1_logs <- .4*total_weblogs
+group_2_logs <- .3*total_weblogs
+group_3_logs <- .2*total_weblogs
+group_4_logs <- .1*total_weblogs
 ```
 
-## Synthesize data
+## Synthesize weblog data
 ### Create publication categories
-Please forgive the generic publication categories. Note that some stories are coded NA, which is something I see a lot in real client data. 
+Imagine a blog that publishes recipes, and has different channels for different types of food. The probability vectors below define the proportions with which members of each group read the articles in different channels. 
+
+Group Four doesn't have a probability matrix; its readers select from all the categories equally. 
+
+Note that some stories are coded NA, which is something you see a lot in real client data. 
+
 ```{r}
-channels <- c("breakings_news", 
-             "arts_culture", 
-             "environment", 
-             "sports", 
-             "blogs", 
-             "classifieds", 
+channels <- c("soups", 
+             "sandwiches", 
+             "salads", 
+             "barbecue", 
+             "seafood", 
+             "stir_fry", 
              NA)
 
-pr_group_1 <- c(.4, .075, .1, .2, .05, .1, .075)
-pr_group_2 <- c(.12, .025, .05, .01, .5, .08, .175)
-pr_group_3 <- c(.26, .01, .6, .01, .04, .01, .07)
-
+# Create probability vectors
+# Each of these sums to one
+pr_group_1 <- c(.4, .3, .1, .05, .05, .025, .075)
+pr_group_2 <- c(.12, .025, .05, .01, .5, .12, .175)
+pr_group_3 <- c(.01, .01, .6, .01, .04, .01, .07)
 ```
 
 
 ### Create alphanumeric subscriber codes
+The subscriber codes have six positions, with three letters and three numbers. 
 ```{r}
-r <- replicate(total_subscribers, paste(sample(LETTERS, 3, replace=TRUE), collapse=""))
-n <- replicate(total_subscribers, paste(sample(c(1:9), 3, replace=TRUE), collapse=""))
-subscriber_codes <- paste0(r, n)
+alpha_bit <- replicate(total_subscribers, paste(sample(LETTERS, 3, replace=TRUE), collapse=""))
+numeric_bit <- replicate(total_subscribers, paste(sample(c(1:9), 3, replace=TRUE), collapse=""))
+subscriber_codes <- paste0(alpha_bit, numeric_bit)
 ```
 
 ### Create column of dates
@@ -95,12 +106,12 @@ subscriber_codes <- paste0(r, n)
 rand.date=function(start.day,end.day,size){   
   days=seq.Date(as.Date(start.day),as.Date(end.day),by="day")  
   pick.day=runif(n=size,min=1,max=length(days)) 
-  print(head(pick.day))
   date=days[pick.day]  
 }
 ```
 
 ### Put it together into a data frame
+This step glues the vectors we've been building into a data frame where each observation is a website visit. Each row has a subscriber code, a date, and a channel showing the kind of recipe the subscriber was reading.  
 ```{r}
 group_1 <- tibble(sub_code = sample(subscriber_codes[group_1_cutoff], size=group_1_logs, replace = TRUE), 
                sys_time = rand.date("2014-01-01","2018-12-31",group_1_logs), 
@@ -119,11 +130,12 @@ group_4 <- tibble(sub_code = sample(subscriber_codes[group_4_cutoff], size=group
                channel = sample(channels, size=group_4_logs, replace = TRUE))
 
 subs <- bind_rows(group_1, group_2, group_3, group_4)
+head(subs)
 ```
 
-
 # Part III: K-means
-### Look for clusters in top 5 most-read titles by customer
+### Transform data to show proportion of reading in each channel. 
+
 ```{r}
 # 
 sub_prop <- subs %>%
@@ -143,7 +155,9 @@ subs_wide <- sub_prop %>%
 
 # Replace NAs with 0
 subs_wide[is.na(subs_wide)] <- 0.0
+```
 
+```{r}
 # do kmeans
 k2 <- kmeans(subs_wide[2:7], centers = k, nstart = 10, algorithm = "Hartigan-Wong")
 
