@@ -66,7 +66,7 @@ group_3_logs <- .2*total_weblogs
 group_4_logs <- .1*total_weblogs
 ```
 
-## Synthesize weblog data
+## Part I: Synthesize weblog data
 ### Create publication categories
 Imagine a blog that publishes recipes, and has different channels for different types of food. The probability vectors below define the proportions with which members of each group read the articles in different channels. 
 
@@ -86,7 +86,7 @@ channels <- c("soups",
 # Create probability vectors
 # Each of these sums to one
 pr_group_1 <- c(.4, .3, .1, .05, .05, .025, .075)
-pr_group_2 <- c(.12, .025, .05, .01, .5, .12, .175)
+pr_group_2 <- c(.13, .025, .05, .01, .55, .06, .175)
 pr_group_3 <- c(.01, .01, .6, .01, .04, .01, .07)
 ```
 
@@ -133,21 +133,32 @@ subs <- bind_rows(group_1, group_2, group_3, group_4)
 head(subs)
 ```
 
-# Part III: K-means
-### Transform data to show proportion of reading in each channel. 
+## Part II: K-means  
+Now we get to the good part. We've just created a weblog with 50,000 records. We can do the clustering process on this data, but we'll have to start by tranforming it into the right format. 
 
+In particular, kmeans requires that the data be uniformly scaled. So if some subscribers are reading hundreds of articles and others are reading just a few, that's going to distort our results. To weight each subscriber equally, we'll want to render the data as _proportions_ instead of raw weblogs. 
+
+In other words, we're going to look at the percentage of each reader's total reads that fell into each channel, and then compare that. 
+
+### Transform data to show proportion of reading in each channel. 
+This part is a little tricky. Essentially we're first counting the views by subscriber, 
+then counting the percentage of those views that took place in each channel. 
 ```{r}
-# 
 sub_prop <- subs %>%
-    select(-sys_time) %>%
-    filter(!is.na(channel)) %>%
-    group_by(sub_code) %>%
-    mutate(sub_views = sum(n())) %>% 
+    select(-sys_time) %>% # we don't need dates for this part
+    filter(!is.na(channel)) %>% # toss records where the channel is NA
+    group_by(sub_code) %>% 
+    mutate(sub_views = sum(n())) %>% # get the total reads per subscriber
     group_by(sub_code, channel, sub_views) %>%
-    summarise(sub_channel_views = n()) %>%
-    mutate(freq = sub_channel_views/sub_views) %>%
+    summarise(sub_channel_views = n()) %>% # get each subscriber's reads in each channel
+    mutate(freq = sub_channel_views/sub_views) %>% # render these numbers as a percentage
     arrange(sub_code, desc(freq)) 
 
+head(sub_prop)
+```
+
+Now we take each channel's proportions and put that in its own column. We can use `tidyr::spread()` to get the data into this so-called wide format. 
+```{r}
 # prep data for k-means
 subs_wide <- sub_prop %>%
     select(-sub_views, -sub_channel_views) %>%
@@ -155,27 +166,32 @@ subs_wide <- sub_prop %>%
 
 # Replace NAs with 0
 subs_wide[is.na(subs_wide)] <- 0.0
+
+head(subs_wide)
 ```
+### Execute kmeans algorithm
+After all that munging, the actual algorithm takes just one line of code to apply. 
+
+Note that we run the algorithm on columns 2 to 7. We're excluding column 1 because kmeans can only accept numeric data types. Including the subscriber codes in the input will cause R to throw an error. 
+
+The plot shows how well our data falls into $k$ clusters. In our case, the data cluster fairly well but notice that there are some ambiguous points. Many of these are the readers in group 4, which read equally in all channels and add a bit of noise to the signal here.  
 
 ```{r}
 # do kmeans
-k2 <- kmeans(subs_wide[2:7], centers = k, nstart = 10, algorithm = "Hartigan-Wong")
+k_means <- kmeans(subs_wide[2:7], centers = k, nstart = 10, algorithm = "Hartigan-Wong")
 
 # plot kmeans
-plotcluster(subs_wide[2:7], k2$cluster)
-
-# Add cluster numbers back to original dataset
-channel_cluster <- cbind(subs_wide, clusterNum = k2$cluster)
-
-# View the data
-head(channel_cluster, 50)
+plotcluster(subs_wide[2:7], k_means$cluster)
 ```
 
 
 ### Line plot for centers of clusters
+Now we are ready to plot the "centroids" returned by kmeans. For each cluster, the kmeans algorithm will return a mean. In our case, this is a mean in n-dimensional space, where $n$ is equal to our number of channels. 
+
+The way to think about this visual output is that each line represents a typical profile for a cluster. The yellow line shows a group that almost exclusively reads about salads. The light blue line shows a second group that mostly reads about seafood, but likes to pair fish with a soup. The dark blue line contains more balanced readers who like sandwiches and soups but read a bit of everything (most of group four will get lumped in with these folks). 
 ```{r}
 # Prepare data for plotting
-cent <- k2$centers %>%
+cent <- k_means$centers %>%
     data.frame() %>%
     rownames_to_column(var = "cluster") %>%
     gather(service, freq, -cluster)
@@ -183,9 +199,57 @@ cent <- k2$centers %>%
 (cluster_count <- length(unique(cent$cluster)))
 
 ggplot(cent, aes(x = service, y = freq, group = cluster)) +
+    theme_classic() +
+    scale_y_continuous(limits = c(0, 1)) +
     geom_line(aes(color = cluster, size = 1)) +
-    ggtitle(paste0("Centers of the ", cluster_count, " Service Clusters Generated by KMeans")) +
+    guides(size = FALSE) +
+    labs(x = "Content Channel") +
+    ggtitle(paste0("Centers of the ", cluster_count, " Channel Clusters Generated by KMeans")) +
     scale_color_manual(values = wes_palette("Zissou1"))
+```
 
+## Part III: Map clusters back to original data
+Once we have classified our subscribers with the kmeans algorithm, we can ask questions about how those clusters behave. Perhaps the first question to ask is how much variation there is within each cluster. Do these clusters really hold up, when we take them back to the original weblog data?
+
+### Add classifiers back to original dataset  
+Appending the cluster numbers is as simple as binding the classification tags back to the original data, since we haven't changed the order of the rows. 
+```{r}
+# Add cluster numbers back to original dataset
+channel_cluster <- cbind(subs_wide, clusterNum = k_means$cluster)
+
+# View the data
+head(channel_cluster)
+```
+
+### Boxplots of original data clustered  
+Now we're ready to look at how the clusters behave. We can ask how many subscribers are in each cluster, for example. Cluster one is significantly larger than the other two. The salad-eating members of group 3 are the least numerous. 
+
+```{r fig.height=4, fig.width=4}
+channel_cluster %>%
+    group_by(clusterNum) %>%
+    summarize(n = n())
+```
+
+We can make boxplots that show the variance and outliers in each channel, for each of our clusters. 
+
+A few thoughts on how to read this plot:
+
+- The three plots stacked on top of each other show data for each of the three clusters. 
+- We see more outliers and taller boxes for the reading habits of the generalists than for the other two clusters. 
+- The salad eaters show very little variation. For the most part they're just reading about how to make salads, and ignoring the rest of the content. 
+```{r}
+# This step reverses the `spread()` we did to prep the data for kmeans
+mapped_data <- channel_cluster %>%
+    gather(channel, freq, -clusterNum, -sub_code) 
+
+# Convert the cluster numbers to a factor, and name its levels.
+mapped_data$clusterNum <- as.factor(mapped_data$clusterNum)
+levels(mapped_data$clusterNum) <- c("Generalists", "Seafood Fans", "Salad Eaters")
+
+# Create a boxplot to view variances and outliers
+ggplot(mapped_data, aes(x = channel, y = freq, fill = channel)) +
+    facet_wrap(~clusterNum, dir = 'v') +
+    geom_boxplot() +
+    scale_fill_manual(values = wes_palette(n= 6, name = "IsleofDogs1"))
 ```
 
