@@ -7,7 +7,7 @@ knit: (function(input_file, encoding) {
  output_file=file.path(dirname(input_file), out_dir, 'index.html'))})
 
 author: "James Trimarco"
-date: "2/6/2019"
+date: "2/10/2019"
 output: html_document
 ---
 
@@ -26,7 +26,7 @@ Since that time, I've run the kmeans algorithm for clients to help them identify
 The following workflow shows the basics of how to apply the kmeans algorithm to web traffic data using synthetic data that roughly simulates some client data I recently saw. 
 
 ## Load libraries
-```{r libraries, include=FALSE}
+```{r libraries}
 library(tidyverse) # essential data tools
 library(cluster) # clustering algorithms
 library(fpc) # for visualizing clusters
@@ -35,7 +35,7 @@ library(wesanderson) # for colors
 
 
 ## Control panel
-Various key settings are set here. 
+Various important settings are determined here. 
 
 The four groups of clients we create in the code chunk below represent clusters with different reading habits. In an effort to simulate real web traffic data, the clusters are not all the same size. Furthermore, some clusters read more than others, and that number is independent of the number of readers in the cluster. 
 ```{r}
