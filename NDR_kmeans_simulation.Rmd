@@ -17,15 +17,16 @@ knitr::opts_chunk$set(echo = TRUE)
 ## Introduction  
 Back when I was a magazine editor, I spent a lot of time looking over web traffic with my teammates. We could see patterns in the traffic and we often imagined that readers might fall into different categories. For example, some people mostly read lifestyle stories but also read about the environment; others who read all the politics stories but avoided arts and culture stories; and so on. If we could sort readers into these categories, we might be able to better personalize our communications with them. 
 
-We didn't quite have a way to quantify these hunches, though, so hunches they remained. 
+We didn't quite have a way to quantify these hunches at the time. 
 
-After going back to school for data science, I realized that the kmeans algorithm offers a tool to do the classification we'd been thinking about. Kmeans starts by randomly selecting $k$ center points — $k$ is a number that we pick ourselves — and then runs an algorithm that finds all the points closest to each center, takes the average of those points to find a new center, and repeats under stable clusters emerge. It's an "unsupervised" algorithm, which means we won't know what categories we're going to find until we actually find them (For a full description of how kmeans works, I recommend this [fun video by StatQuest](https://www.youtube.com/watch?v=4b5d3muPQmA)). 
+After going back to school for data science, I realized that the kmeans algorithm offers a tool to do the classification we'd wanted. Kmeans starts by randomly selecting $k$ center points — $k$ is a number that we pick at the beginning of the process — and then runs an routine that finds all the points closest to each center, takes the average of those points to find a new center, and repeats until stable clusters emerge. It's an "unsupervised" algorithm, which means we won't know what categories we're going to find until we actually find them (For a full description of how kmeans works, I recommend this [fun video by StatQuest](https://www.youtube.com/watch?v=4b5d3muPQmA)). 
 
-Since that time, I've run the kmeans algorithm for clients to help them identify the clusters of subscribers hidden in their web traffic data. Usually some results match the publishers' hunches — "We always thought we saw a group that came around every time our star blogger posted new content." But other results came as a surprise. 
+Since that time, I've run the kmeans algorithm for clients to help them identify clusters of subscribers hidden in their traffic data. Usually some results match the publishers' hunches — "We always thought we had a group that came around every time our star blogger posted new content but didn't read anything else." But other results came as a surprise. 
 
-The following workflow shows the basics of how to apply the kmeans algorithm to web traffic data using synthetic data that roughly simulates some client data I recently saw. 
+The following workflow shows the basics of how to apply the kmeans algorithm to web traffic data using some made-up data that roughly simulates typical client weblogs. 
 
-## Load libraries
+## Part I: Setup
+### Load libraries
 ```{r libraries}
 library(tidyverse) # essential data tools
 library(cluster) # clustering algorithms
@@ -34,7 +35,7 @@ library(wesanderson) # for colors
 ```
 
 
-## Control panel
+### Control panel
 Various important settings are determined here. 
 
 The four groups of clients we create in the code chunk below represent clusters with different reading habits. In an effort to simulate real web traffic data, the clusters are not all the same size. Furthermore, some clusters read more than others, and that number is independent of the number of readers in the cluster. 
@@ -66,7 +67,7 @@ group_3_logs <- .2*total_weblogs
 group_4_logs <- .1*total_weblogs
 ```
 
-## Part I: Synthesize weblog data
+## Part II: Synthesize weblog data
 ### Create publication categories
 Imagine a blog that publishes recipes, and has different channels for different types of food. The probability vectors below define the proportions with which members of each group read the articles in different channels. 
 
@@ -133,7 +134,7 @@ subs <- bind_rows(group_1, group_2, group_3, group_4)
 head(subs)
 ```
 
-## Part II: K-means  
+## Part III: K-means  
 Now we get to the good part. We've just created a weblog with 50,000 records. We can do the clustering process on this data, but we'll have to start by tranforming it into the right format. 
 
 In particular, kmeans requires that the data be uniformly scaled. So if some subscribers are reading hundreds of articles and others are reading just a few, that's going to distort our results. To weight each subscriber equally, we'll want to render the data as _proportions_ instead of raw weblogs. 
@@ -208,7 +209,7 @@ ggplot(cent, aes(x = service, y = freq, group = cluster)) +
     scale_color_manual(values = wes_palette("Zissou1"))
 ```
 
-## Part III: Map clusters back to original data
+## Part IV: Map clusters back to original data
 Once we have classified our subscribers with the kmeans algorithm, we can ask questions about how those clusters behave. Perhaps the first question to ask is how much variation there is within each cluster. Do these clusters really hold up, when we take them back to the original weblog data?
 
 ### Add classifiers back to original dataset  
